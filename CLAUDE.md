@@ -67,9 +67,6 @@ boardown/
 │   ├── electron/      # Desktop shell (macOS / Windows / Linux): Electron main
 │   │                  # (esbuild) + renderer (Vite) hosting @boardown/ui over a
 │   │                  # Node FsAdapter. Shipped (installers per release).
-│   ├── tauri/         # Experimental Windows desktop shell (Tauri 2 + WebView2):
-│   │                  # mounts @boardown/ui over Tauri IPC; working essentials
-│   │                  # only (no recents/settings/menu/external links yet).
 │   └── cli/           # Command-line / agent-facing shell: maps argv onto
 │                      # @boardown/core board-ops over a Node FsAdapter, with
 │                      # machine-readable JSON output. Published to npm as
@@ -97,10 +94,7 @@ webview mounts the real `@boardown/ui` with a `VsCodeFsAdapter` that proxies
 them from `vscode.workspace.fs`. The board root is the single open workspace
 folder's `.boardown/`; choosing among multiple roots or an arbitrary folder is
 out of scope (Electron territory). The Electron desktop build follows the same
-shell pattern and ships installers with each release. `packages/tauri` is an
-experimental Windows Tauri 2 shell over the same pattern — `FsAdapter`,
-`ProjectFileReader` and the git `run` callback implemented across the Tauri IPC
-boundary, with the path guard and git invocation living in Rust.
+shell pattern and ships installers with each release.
 
 `packages/web` owns one set of HTTP endpoints — `/api/fs/{read,list,stat,write,
 mkdir,remove}` scoped to a board root, the read-only `/api/project-file` scoped to
