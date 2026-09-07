@@ -398,6 +398,8 @@ Requirements:
 
 - Node.js **>= 20** (the repo pins `20` via `.nvmrc`; Node 22 also works)
 - pnpm **10+** (`npm install -g pnpm` or via `corepack`)
+- A Rust toolchain with the MSVC Build Tools — only for the Tauri desktop shell
+  (see [Desktop app (Tauri, experimental, Windows)](#desktop-app-tauri-experimental-windows) below)
 
 Install dependencies once if you skipped the quick start above:
 
@@ -405,7 +407,7 @@ Install dependencies once if you skipped the quick start above:
 pnpm install
 ```
 
-The repo is a pnpm workspace with six packages:
+The repo is a pnpm workspace with seven packages:
 
 - [`packages/core`](./packages/core) — platform-agnostic logic (schemas,
   parser, board operations). Pure TypeScript, runs in Node.
@@ -425,6 +427,10 @@ The repo is a pnpm workspace with six packages:
   (macOS / Windows / Linux): an Electron main process + preload behind the same
   `FsAdapter`, with a Vite-built renderer that reuses `@boardown/ui`. See
   [Desktop app (Electron)](#desktop-app-electron) below.
+- [`packages/tauri`](./packages/tauri) — an experimental Windows desktop shell
+  (Tauri 2 + WebView2): mounts `@boardown/ui` over Tauri IPC, with the path
+  guard and git invocation living in Rust. See
+  [Desktop app (Tauri, experimental, Windows)](#desktop-app-tauri-experimental-windows) below.
 - [`packages/cli`](./packages/cli) — a headless command-line / agent-facing
   shell: it does not mount `@boardown/ui`, mapping commands onto `@boardown/core`
   board operations over a Node `FsAdapter`, with machine-readable JSON output.
@@ -437,7 +443,7 @@ The repo is a pnpm workspace with six packages:
 |--------------------|-----------------------------------------------------------|
 | `pnpm dev`         | Start the web dev server against this repo's `.boardown/` (Vite, `http://localhost:5173`) |
 | `pnpm dev:sandbox` | Start the web dev server against a throwaway copy of the test fixture (`http://localhost:5199`) — see [Browser testing](#browser-testing) |
-| `pnpm build`       | Build the shells that have a `build` script (web → Vite bundle, vscode → host + webview); `core` and `ui` are source-only and skipped |
+| `pnpm build`       | Build the shells that have a `build` script (web → Vite bundle, vscode → host + webview, tauri → renderer bundle); `core` and `ui` are source-only and skipped |
 | `pnpm test`        | Run Vitest across all packages                            |
 | `pnpm typecheck`   | Run `tsc --noEmit` in every package                       |
 | `pnpm lint`        | Run ESLint over the workspace                             |
@@ -513,6 +519,44 @@ Windows code-signing) need certificates and are deferred, so distributed builds
 are unsigned for now — end users see a SmartScreen (Windows) / Gatekeeper
 (macOS) warning on first launch ([how to bypass it](#desktop-app)).
 
+### Desktop app (Tauri, experimental, Windows)
+
+`packages/tauri` is an experimental Windows desktop shell (Tauri 2 + WebView2).
+It mounts `@boardown/ui` unchanged behind an `FsAdapter` implemented over Tauri
+IPC — the path guard and the git invocation live in Rust, everything the answer
+means stays in core. Working essentials only: folder picker, auto-refresh on
+external changes, and the task commits panel. No recent folders, settings,
+menu or external links yet.
+
+Prerequisites on top of Node/pnpm: the
+[Rust toolchain](https://www.rust-lang.org/tools/install) with the MSVC Build
+Tools (the default with Rust's Windows installer), and the WebView2 runtime
+(preinstalled on Windows 11 and up-to-date Windows 10).
+
+Run it from sources in dev (Vite HMR for the renderer):
+
+```sh
+pnpm --filter @boardown/tauri dev
+```
+
+Compile the app and bundle it:
+
+```sh
+pnpm --filter @boardown/tauri build   # renderer only (Vite) → dist/
+pnpm --filter @boardown/tauri dist    # release compile + NSIS bundle → src-tauri/target/
+```
+
+The first `dist` takes a few minutes — every Rust dependency compiles once;
+later runs are incremental. Artifacts:
+
+- `packages/tauri/src-tauri/target/release/boardown-tauri.exe` — the standalone
+  binary (~9 MB)
+- `packages/tauri/src-tauri/target/release/bundle/nsis/boardown_<version>_x64-tauri-setup.exe`
+  — the installer
+
+Like `electron-builder`, Tauri compiles for the **host OS**, so build the
+Windows installer on Windows.
+
 ### App icons
 
 Every shell's app icon derives from a single master, `assets/brand/boardown.svg`.
@@ -571,10 +615,10 @@ attributes because they have no accessible name of their own; everything else
 
 The whole monorepo ships under **one lockstep version**: the same number lives
 in every `package.json`, with the **root `package.json` as the single source of
-truth**. Each release attaches the VS Code `.vsix` plus the Electron desktop
-installers for all three OSes (Windows / macOS / Linux), and publishes the CLI
-to npm; future shells (web, JetBrains) will release together under the same
-version.
+truth**. Each release attaches the VS Code `.vsix`, the Electron desktop
+installers for all three OSes (Windows / macOS / Linux) and the experimental
+Tauri Windows installer (NSIS), and publishes the CLI to npm; future shells
+(web, JetBrains) will release together under the same version.
 
 Releases are driven by a version bump on `main`, not by pushing tags by hand:
 

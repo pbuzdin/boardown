@@ -81,15 +81,17 @@ jobs:
 
   # Build every distributable artifact. electron-builder packages only for the
   # host OS, so the desktop installers need one runner per OS; the gates and the
-  # OS-agnostic .vsix run once on the Linux leg. Each leg uploads its artifacts
-  # for the release job to gather. Tagging happens later, only after all of
-  # these succeed.
+  # OS-agnostic .vsix run once on the Linux leg. The Windows leg additionally
+  # compiles the experimental Tauri shell and bundles its NSIS installer. Each
+  # leg uploads its artifacts for the release job to gather. Tagging happens
+  # later, only after all of these succeed.
   build:
     name: Build artifacts (${{ matrix.os }})
     needs: determine
     if: needs.determine.outputs.should_release == 'true'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # 45 so the Windows leg fits the Electron build plus a cold Rust compile.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -99,6 +101,7 @@ jobs:
             run_gates: true
           - os: windows-latest
             artifact: dist-windows
+            tauri: true
           - os: macos-latest
             artifact: dist-macos
 
@@ -117,6 +120,24 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # The experimental Tauri shell rides the Windows leg (host-OS compile):
+      # a Rust toolchain, a Cargo cache mirroring build-tauri-windows.yml, and
+      # the NSIS bundle.
+      - name: Setup Rust (Tauri)
+        if: matrix.tauri
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo (Tauri)
+        if: matrix.tauri
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\cargo\registry
+            ~\AppData\Local\cargo\git
+            packages\tauri\src-tauri\target
+          key: tauri-windows-${{ runner.os }}-${{ hashFiles('packages/tauri/src-tauri/Cargo.lock') }}
+          restore-keys: tauri-windows-${{ runner.os }}-
 
       # Gates + the .vsix are platform-agnostic — run them once, on Linux.
       - name: Lint
@@ -143,6 +164,10 @@ jobs:
           CSC_IDENTITY_AUTOUPDATE: false
         run: pnpm --filter @boardown/electron dist
 
+      - name: Build Tauri NSIS installer
+        if: matrix.tauri
+        run: pnpm --filter @boardown/tauri dist
+
       - name: Collect artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -157,6 +182,7 @@ jobs:
             packages/electron/release/*.AppImage
             packages/electron/release/*.deb
             packages/electron/release/*.zip
+            packages/tauri/src-tauri/target/release/bundle/nsis/*.exe
 
   # Gather every leg's artifacts, tag, and publish a single GitHub Release.
   release:

@@ -24,7 +24,8 @@ License: MIT.
   file and three subfolders (`releases/`, `epics/`, `docs/`). Everything is
   committed to git as-is.
 - **Distribution:** a **VS Code extension** (the canonical way to use boardown),
-  a standalone **Electron desktop app** (Windows / macOS / Linux), and a headless
+  a standalone **Electron desktop app** (Windows / macOS / Linux), an
+  experimental **Tauri desktop app** (Windows) alongside it, and a headless
   **CLI** for agents and scripts, published to npm. A slim browser shell exists
   as a development tool for working on the UI from sources. See
   "Distribution & shells" below.
@@ -1167,6 +1168,18 @@ markdown the board did not author (a previewed repo file) cannot talk it into
 loading something else. Installers
 are attached to each GitHub Release. Builds are currently unsigned —
 code-signing / notarization are a separate round.
+
+### Tauri desktop app (experimental, Windows)
+
+A second desktop shell (`packages/tauri`, Tauri 2 + WebView2) that mounts
+`@boardown/ui` unchanged. Same capability split as the other hosts: an
+`FsAdapter` over Tauri IPC whose path guard is the Rust mirror of the Electron
+one, a read-only project-file channel whose bytes are classified by core's
+`classifyProjectFile`, and git run by the host with every decision made in
+core's `readTaskCommits`. Auto-refresh rides a `notify` watcher with the same
+echo suppression, collapsed into a single debounced `board-changed` event.
+Deliberately skipped for now: recent folders, settings persistence, the app
+menu, external-link handling, and CLI-argument folder opening.
 
 ### CLI
 
